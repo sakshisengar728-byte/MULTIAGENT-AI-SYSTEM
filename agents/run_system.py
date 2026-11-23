@@ -5,10 +5,10 @@ import sys
 import time
 
 SERVICES = [
-    "agents.load_agent",
-    "agents.generation_agent",
-    "agents.storage_agent",
-    "agents.pricing_agent",
+    "load_agent",
+    "generation_agent",
+    "storage_agent",
+    "pricing_agent",
     "coordinator",
     "llm_explainer",
     "dashboard",
