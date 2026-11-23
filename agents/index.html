@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multi-Agent AI IoT Energy System</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; padding: 24px; background: #0b1120; color: #f8fafc;
+           font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    h1 { margin: 0 0 4px; font-size: 26px; }
+    h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em;
+         color: #94a3b8; margin: 26px 0 10px; }
+    .sub { color: #94a3b8; font-size: 14px; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; }
+    .label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
+    .value { font-size: 24px; font-weight: 700; margin-top: 6px; }
+    .agent-name { font-weight: 700; margin-bottom: 6px; }
+    .action { font-family: Consolas, monospace; font-size: 13px; color: #a5f3fc; }
+    .reason { font-size: 13px; color: #94a3b8; margin-top: 8px; min-height: 34px; }
+    pre { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px;
+          white-space: pre-wrap; font-size: 14px; margin: 0; }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #334155;
+             margin-left: 8px; text-transform: none; letter-spacing: 0; }
+    .chart-box { height: 340px; background: #1e293b; border: 1px solid #334155;
+                 border-radius: 10px; padding: 14px; }
+  </style>
+</head>
+<body>
+  <h1>⚡ Multi-Agent AI IoT Energy System</h1>
+  <div class="sub">Simulated hour <strong id="hour">--</strong> · live data over Mosquitto MQTT</div>
+
+  <h2>Live readings</h2>
+  <div class="grid">
+    <div class="card"><div class="label">Building demand</div><div class="value" id="load">--</div></div>
+    <div class="card"><div class="label">Solar PV</div><div class="value" id="solar">--</div></div>
+    <div class="card"><div class="label">Battery SOC</div><div class="value" id="soc">--</div></div>
+    <div class="card"><div class="label">Tariff</div><div class="value" id="price">--</div></div>
+    <div class="card"><div class="label">Grid import</div><div class="value" id="grid">--</div></div>
+  </div>
+
+  <h2>Coordinator decision</h2>
+  <pre id="summary">Waiting for coordinator...</pre>
+
+  <h2>Agent proposals</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="agent-name">Load Agent</div>
+      <div class="action" id="load-action">--</div>
+      <div class="reason" id="load-reason"></div>
+    </div>
+    <div class="card">
+      <div class="agent-name">Solar Agent</div>
+      <div class="action" id="generation-action">--</div>
+      <div class="reason" id="generation-reason"></div>
+    </div>
+    <div class="card">
+      <div class="agent-name">Storage Agent</div>
+      <div class="action" id="storage-action">--</div>
+      <div class="reason" id="storage-reason"></div>
+    </div>
+    <div class="card">
+      <div class="agent-name">Pricing Agent</div>
+      <div class="action" id="pricing-action">--</div>
+      <div class="reason" id="pricing-reason"></div>
+    </div>
+  </div>
+
+  <h2>Plain-language explanation <span class="badge" id="explain-source">waiting</span></h2>
+  <pre id="explain">Waiting for the explainer...</pre>
+
+  <h2>Node-RED grid alert</h2>
+  <pre id="alert">No grid alert yet.</pre>
+
+  <h2>24-hour trend</h2>
+  <div class="chart-box"><canvas id="chart"></canvas></div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const fmt = (v, unit) => (v === undefined || v === null) ? '--' : `${v} ${unit}`;
+
+    let chart = null;
+    if (window.Chart) {
+      chart = new Chart($('chart'), {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'Solar (kW)',       borderColor: '#34d399', data: [], tension: 0.3 },
+            { label: 'Load (kW)',        borderColor: '#fbbf24', borderDash: [4, 4], data: [], tension: 0.3 },
+            { label: 'Grid import (kW)', borderColor: '#f87171', data: [], tension: 0.3 },
+            { label: 'Battery SOC (%)',  borderColor: '#38bdf8', data: [], yAxisID: 'soc', tension: 0.3 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y:   { title: { display: true, text: 'Power (kW)' }, beginAtZero: true },
+            soc: { position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false },
+                   title: { display: true, text: 'Battery SOC (%)' } }
+          }
+        }
+      });
+    }
+
+    async function refresh() {
+      try {
+        const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
+        const t = s.telemetry, d = s.decision;
+
+        $('hour').textContent = (t.hour === undefined) ? '--' : String(t.hour).padStart(2, '0') + ':00';
+        $('load').textContent = fmt(t.load_kw, 'kW');
+        $('solar').textContent = fmt(t.solar_kw, 'kW');
+        $('soc').textContent = fmt(t.battery_soc, '%');
+        $('price').textContent = (t.price_per_kwh === undefined) ? '--' : `Rs. ${t.price_per_kwh}/kWh`;
+        $('grid').textContent = fmt(d.grid_import_kw, 'kW');
+        $('summary').textContent = d.summary || 'Waiting for coordinator...';
+
+        for (const name of ['load', 'generation', 'storage', 'pricing']) {
+          const p = s.proposals[name];
+          $(name + '-action').textContent = p ? (p.recommended_action || p.recommended_strategy) : '--';
+          $(name + '-reason').textContent = p ? (p.reason || '') : '';
+        }
+
+        const e = s.explanation || {};
+        $('explain').textContent = e.text || 'Waiting for the explainer...';
+        $('explain-source').textContent = e.source || 'waiting';
+        $('alert').textContent = s.alert ? s.alert.text : 'No grid alert yet.';
+
+        if (chart) {
+          const h = s.history;
+          chart.data.labels = h.map(x => x.hour);
+          chart.data.datasets[0].data = h.map(x => x.solar);
+          chart.data.datasets[1].data = h.map(x => x.load);
+          chart.data.datasets[2].data = h.map(x => x.grid);
+          chart.data.datasets[3].data = h.map(x => x.soc);
+          chart.update('none');
+        }
+      } catch (err) {
+        console.error('Refresh failed:', err);
+      }
+    }
+
+    setInterval(refresh, 1500);
+    refresh();
+  </script>
+</body>
+</html>
