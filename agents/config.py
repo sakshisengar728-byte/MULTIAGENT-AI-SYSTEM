@@ -32,3 +32,9 @@ OLLAMA_MODEL = "llama3.2:3b"
 # On Render: the Dockerfile sets DASHBOARD_HOST=0.0.0.0, and Render provides PORT.
 DASHBOARD_HOST = os.environ.get("DASHBOARD_HOST", "127.0.0.1")
 DASHBOARD_PORT = int(os.environ.get("PORT", "8050"))
+
+# ---------- Cloud LLM (Groq) ----------
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+LLM_INTERVAL = 30
