@@ -24,6 +24,9 @@ def template_explanation(d):
 def ollama_explanation(d):
     prompt = ("You explain the energy dispatch decision of a home microgrid to the homeowner. "
               "Write exactly two plain sentences. Use only the numbers in the JSON. "
+              "All electricity tariffs are in Indian Rupees (INR). "
+              "Never use dollars or USD. "
+              "Mention the simulation hour in the explanation. "
               "Do not invent numbers.\n\nDecision JSON:\n" + json.dumps(d))
     body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False,
                        "options": {"temperature": 0.2}}).encode()
@@ -38,6 +41,10 @@ def groq_explanation(d):
         "Explain this home microgrid energy decision "
         "in exactly two simple sentences. "
         "Use only the supplied data. Do not invent numbers. "
+        "All electricity tariffs are in Indian Rupees (INR). "
+        "Always express electricity prices in INR or Rs. per kWh. "
+        "Never use dollars or USD. "
+        "Mention the simulation hour in the explanation. "
         + json.dumps(d)
     )
 
@@ -114,6 +121,10 @@ def worker(client):
             time.sleep(0.5)
             continue
         result = explain(d)
+        result["text"] = (
+            f"Explanation for simulation hour: {d['hour']:02d}:00\n\n"
+            + result["text"]
+        )
         client.publish(EXPLANATION_TOPIC, json.dumps(result))
         print(f"[LLM:{result['source']}] {result['text']}", flush=True)
         if GROQ_API_KEY:
