@@ -99,6 +99,18 @@
     equipment costs and export revenue are excluded.
   </div>
 
+  <h2>Electricity Cost Comparison</h2>
+
+  <div class="chart-box">
+    <canvas id="cost-chart"></canvas>
+  </div>
+
+  <div class="sub" style="margin-top:10px;">
+    Comparison of grid-only baseline, optimized grid
+    expenditure and total cost reduction including
+    load shedding.
+  </div>
+
   <h2>Agent proposals</h2>
   <div class="grid">
     <div class="card">
@@ -161,6 +173,61 @@
       });
     }
 
+    let costChart = null;
+
+    if (window.Chart) {
+      costChart = new Chart($('cost-chart'), {
+        type: 'bar',
+        data: {
+          labels: [
+            'Conventional Cost',
+            'Optimized Cost',
+            'Cost Reduction'
+          ],
+          datasets: [{
+            label: 'Electricity Cost (INR)',
+            data: [null, null, null],
+            backgroundColor: [
+              '#f87171',
+              '#38bdf8',
+              '#34d399'
+            ],
+            borderRadius: 6,
+            maxBarThickness: 100
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: context =>
+                  'Rs. ' + Number(context.raw).toFixed(2)
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: '#cbd5e1' }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { color: '#cbd5e1' },
+              title: {
+                display: true,
+                text: 'Electricity Cost (INR)',
+                color: '#94a3b8'
+              }
+            }
+          }
+        }
+      });
+    }
+
     async function refresh() {
       try {
         const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
@@ -181,6 +248,16 @@
         }
 
         const c = s.cumulative_cost || {};
+
+        if (costChart) {
+          costChart.data.datasets[0].data = [
+            c.baseline_cost ?? null,
+            c.optimized_cost ?? null,
+            c.total_savings ?? null
+          ];
+
+          costChart.update('none');
+        }
 
         const money = v => v == null
           ? '--' : 'Rs. ' + Number(v).toFixed(2);
