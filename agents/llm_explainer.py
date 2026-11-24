@@ -55,7 +55,9 @@ def groq_explanation(d):
         data=body,
         headers={
             "Content-Type": "application/json",
-            "Authorization": "Bearer " + GROQ_API_KEY
+            "Authorization": "Bearer " + GROQ_API_KEY,
+            "User-Agent": "MultiAgentEnergySystem/1.0",
+            "Accept": "application/json"
         }
     )
 
