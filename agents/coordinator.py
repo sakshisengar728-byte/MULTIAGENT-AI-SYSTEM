@@ -5,6 +5,8 @@ import paho.mqtt.client as mqtt
 from config import (BROKER_HOST, BROKER_PORT, DECISION_TOPIC, MAX_BATTERY_KW,
                     MAX_SOC, MIN_SOC, PEAK_PRICE, PROPOSAL_PREFIX, TELEMETRY_TOPIC)
 
+from battery_management import battery_power_limits
+
 AGENTS = {"load", "generation", "storage", "pricing"}
 
 
@@ -14,6 +16,10 @@ def decide(t, p):
     load, solar = t["load_kw"], t["solar_kw"]
     soc, price = t["battery_soc"], t["price_per_kwh"]
     load_p, stor_p = p["load"], p["storage"]
+
+    limits = battery_power_limits(
+        t.get("battery_soc_exact", soc)
+    )
 
     # 1. Essential load is always served. Flexible load is shed only at peak price.
     shed = load_p["recommended_action"] == "SHED_FLEXIBLE_LOAD" and price >= PEAK_PRICE
@@ -26,15 +32,19 @@ def decide(t, p):
 
     # 3. Surplus charges the battery only if the storage agent allows it and SOC is below the ceiling.
     to_battery = 0.0
-    if stor_p["recommended_action"] == "CHARGE" and soc < MAX_SOC:
-        to_battery = round(min(surplus, stor_p["recommended_power_kw"], MAX_BATTERY_KW), 2)
+    if stor_p["recommended_action"] == "CHARGE" and limits["max_charge_kw"] > 0:
+        to_battery = round(min(surplus, max(0.0, stor_p["recommended_power_kw"]),
+                               limits["max_charge_kw"]), 2)
     exported = round(surplus - to_battery, 2)
 
     # 4. Remaining load: battery only if the storage agent allows discharge and SOC is above the floor.
     remaining = round(active - solar_to_load, 2)
     from_battery = 0.0
-    if remaining > 0 and stor_p["recommended_action"] == "DISCHARGE" and soc > MIN_SOC:
-        from_battery = round(min(remaining, stor_p["recommended_power_kw"], MAX_BATTERY_KW), 2)
+    if (remaining > 0
+            and stor_p["recommended_action"] == "DISCHARGE"
+            and limits["max_discharge_kw"] > 0):
+        from_battery = round(min(remaining, max(0.0, stor_p["recommended_power_kw"]),
+                                 limits["max_discharge_kw"]), 2)
     grid = round(remaining - from_battery, 2)
 
     summary = (f"Hour {t['hour']:02d}:00 | Load {active:.2f} kW (shed {shed_kw:.2f}) | "
@@ -57,6 +67,7 @@ def decide(t, p):
 class Coordinator:
     def __init__(self):
         self.telemetry = None
+        self.completed_step_id = None
         self.proposals = {}
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="coordinator")
         self.client.on_connect = self.on_connect
@@ -71,15 +82,38 @@ class Coordinator:
         try:
             data = json.loads(msg.payload.decode())
             if msg.topic == TELEMETRY_TOPIC:          # new hour: wait for its proposals
+                if not data.get("step_id"):
+                    return
+
+                if self.telemetry is not None:
+                    if data["step_id"] == self.telemetry["step_id"]:
+                        return
+
                 self.telemetry = data
                 self.proposals = {}
                 return
-            if self.telemetry is None or data.get("hour") != self.telemetry["hour"]:
-                return                                 # stale or early proposal
+            if self.telemetry is None:
+                return
+
+            if data.get("step_id") != self.telemetry["step_id"]:
+                return
+
+            if data.get("hour") != self.telemetry["hour"]:
+                return
+
+            if self.completed_step_id == self.telemetry["step_id"]:
+                return
+
+            if data.get("agent") not in AGENTS:
+                return
             self.proposals[data["agent"]] = data
             if AGENTS.issubset(self.proposals):
                 decision = decide(self.telemetry, self.proposals)
+                decision["step_id"] = self.telemetry["step_id"]
+
                 client.publish(DECISION_TOPIC, json.dumps(decision))
+
+                self.completed_step_id = decision["step_id"]
                 print("[COORDINATOR]", decision["summary"], flush=True)
                 self.proposals = {}
         except Exception as exc:

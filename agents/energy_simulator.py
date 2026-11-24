@@ -1,5 +1,6 @@
 import random
 import threading
+import uuid
 from datetime import datetime
 
 from config import (BATTERY_CAPACITY_KWH, CHARGE_EFFICIENCY, MAX_SOC, MIN_SOC,
@@ -11,6 +12,8 @@ class EnergySimulator:
 
     def __init__(self, initial_soc=70.0):
         self.hour = 0
+        self.step_id = 0
+        self.session_id = uuid.uuid4().hex
         self.soc = initial_soc
         self.lock = threading.Lock()
 
@@ -24,15 +27,18 @@ class EnergySimulator:
             reading = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "hour": self.hour,
+                "step_id": f"{self.session_id}:{self.step_id}",
                 "load_kw": load,
                 "solar_kw": solar,
                 "battery_soc": round(self.soc, 1),
+                "battery_soc_exact": self.soc,
                 "battery_energy_kwh": round(BATTERY_CAPACITY_KWH * self.soc / 100, 2),
                 "grid_kw": round(max(0.0, load - solar), 2),
                 "price_per_kwh": price,
                 "currency": "INR",
             }
             self.hour = (self.hour + 1) % 24
+            self.step_id += 1
             return reading
 
     def apply_dispatch(self, decision):

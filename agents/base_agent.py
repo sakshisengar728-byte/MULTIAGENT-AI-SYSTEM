@@ -26,6 +26,7 @@ class BaseAgent:
             proposal = self.evaluate(telemetry)
             proposal["agent"] = self.name
             proposal["hour"] = telemetry["hour"]
+            proposal["step_id"] = telemetry["step_id"]
             client.publish(PROPOSAL_PREFIX + self.name, json.dumps(proposal))
             print(f"[{self.name.upper()} AGENT] {telemetry['hour']:02d}:00 -> {proposal}", flush=True)
         except Exception as exc:

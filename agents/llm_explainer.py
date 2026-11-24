@@ -27,7 +27,15 @@ def ollama_explanation(d):
               "All electricity tariffs are in Indian Rupees (INR). "
               "Never use dollars or USD. "
               "Mention the simulation hour in the explanation. "
-              "Do not invent numbers.\n\nDecision JSON:\n" + json.dumps(d))
+
+    "The active_load_kw is the actual served load. "
+    "The load_shed_kw is the total unserved flexible load. "
+    "Never subtract load_shed_kw from active_load_kw. "
+    "Solar, battery and grid together supply the active load. "
+    "Solar charging and solar export are not household load supply. "
+    "Do not claim that all demand was served when load shedding occurred. "
+    "Do not invent savings, percentages or energy values. "
+"Do not invent numbers.\n\nDecision JSON:\n" + json.dumps(d))
     body = json.dumps({"model": OLLAMA_MODEL, "prompt": prompt, "stream": False,
                        "options": {"temperature": 0.2}}).encode()
     req = urllib.request.Request(OLLAMA_URL, data=body,
@@ -45,6 +53,15 @@ def groq_explanation(d):
         "Always express electricity prices in INR or Rs. per kWh. "
         "Never use dollars or USD. "
         "Mention the simulation hour in the explanation. "
+
+    "The active_load_kw is the actual served load. "
+    "The load_shed_kw is the total unserved flexible load. "
+    "Never subtract load_shed_kw from active_load_kw. "
+    "Solar, battery and grid together supply the active load. "
+    "Solar charging and solar export are not household load supply. "
+    "Do not claim that all demand was served when load shedding occurred. "
+    "Do not invent savings, percentages or energy values. "
+
         + json.dumps(d)
     )
 
