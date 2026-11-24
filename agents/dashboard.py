@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import paho.mqtt.client as mqtt
+from cost_analysis import calculate_cost, calculate_cumulative
 
 from config import (ALERT_TOPIC, BROKER_HOST, BROKER_PORT, DASHBOARD_HOST, DASHBOARD_PORT,
                     DECISION_TOPIC, EXPLANATION_TOPIC, PROPOSAL_PREFIX, TELEMETRY_TOPIC)
@@ -19,6 +20,9 @@ state = {
     "explanation": {},
     "alert": None,
     "history": [],
+    "cost_analysis": {},
+    "cost_history": [],
+    "cumulative_cost": {},
 }
 
 
@@ -34,6 +38,14 @@ def on_message(client, userdata, msg):
                 state["telemetry"] = data
             elif msg.topic == DECISION_TOPIC:
                 state["decision"] = data
+
+                cost = calculate_cost(data)
+                state["cost_analysis"] = cost
+                state["cost_history"].append(cost)
+                state["cost_history"] = state["cost_history"][-24:]
+                state["cumulative_cost"] = calculate_cumulative(
+                    state["cost_history"]
+                )
                 t = state["telemetry"]
                 state["history"].append({
                     "hour": f"{data['hour']:02d}:00",

@@ -44,6 +44,61 @@
   <h2>Coordinator decision</h2>
   <pre id="summary">Waiting for coordinator...</pre>
 
+  <h2>Electricity Cost &amp; Savings Analysis</h2>
+  <div class="sub" id="cost-status">Waiting for cost data...</div>
+
+  <div class="grid" style="margin-top: 12px;">
+    <div class="card">
+      <div class="label">Conventional grid cost</div>
+      <div class="value" id="cost-baseline">--</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Optimized grid cost</div>
+      <div class="value" id="cost-optimized">--</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Solar and battery savings</div>
+      <div class="value" id="cost-energy" style="color:#4ade80;">--</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Load shedding reduction</div>
+      <div class="value" id="cost-shedding" style="color:#fbbf24;">--</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Total grid cost reduction</div>
+      <div class="value" id="cost-total" style="color:#4ade80;">--</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Served-load savings</div>
+      <div class="value" id="cost-percent" style="color:#4ade80;">--</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Grid energy imported</div>
+      <div class="value" id="cost-grid-energy">--</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Energy served</div>
+      <div class="value" id="cost-served-energy">--</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Energy shed</div>
+      <div class="value" id="cost-shed-energy">--</div>
+    </div>
+  </div>
+
+  <div class="sub" style="margin-top:10px;">
+    Calculated using Python. Grid expenditure only;
+    equipment costs and export revenue are excluded.
+  </div>
+
   <h2>Agent proposals</h2>
   <div class="grid">
     <div class="card">
@@ -124,6 +179,26 @@
           $(name + '-action').textContent = p ? (p.recommended_action || p.recommended_strategy) : '--';
           $(name + '-reason').textContent = p ? (p.reason || '') : '';
         }
+
+        const c = s.cumulative_cost || {};
+
+        const money = v => v == null
+          ? '--' : 'Rs. ' + Number(v).toFixed(2);
+
+        $('cost-baseline').textContent = money(c.baseline_cost);
+        $('cost-optimized').textContent = money(c.optimized_cost);
+        $('cost-energy').textContent = money(c.energy_savings);
+        $('cost-shedding').textContent = money(c.shedding_savings);
+        $('cost-total').textContent = money(c.total_savings);
+
+        $('cost-percent').textContent = fmt(c.savings_percent, '%');
+        $('cost-grid-energy').textContent = fmt(c.grid_energy_kwh, 'kWh');
+        $('cost-served-energy').textContent = fmt(c.served_energy_kwh, 'kWh');
+        $('cost-shed-energy').textContent = fmt(c.shed_energy_kwh, 'kWh');
+
+        $('cost-status').textContent = c.complete_24_hours
+          ? 'Rolling 24 consecutive simulated hours | Python calculation'
+          : (c.hours_recorded || 0) + '/24 decision records | Partial data';
 
         const e = s.explanation || {};
         $('explain').textContent = e.text || 'Waiting for the explainer...';
