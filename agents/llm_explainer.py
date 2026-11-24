@@ -47,7 +47,8 @@ def groq_explanation(d):
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.2,
-        "max_tokens": 180
+        "max_completion_tokens": 1024,
+        "reasoning_effort": "low"
     }).encode()
 
     req = urllib.request.Request(
@@ -65,7 +66,7 @@ def groq_explanation(d):
         result = json.loads(resp.read().decode())
         answer = result["choices"][0]["message"]["content"].strip()
         if not answer:
-            raise ValueError("Empty LLM response")
+            raise ValueError("Empty LLM response; finish_reason=" + str(result["choices"][0].get("finish_reason")))
         return answer
 
 
