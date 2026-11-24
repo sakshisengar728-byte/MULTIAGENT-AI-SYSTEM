@@ -2,6 +2,7 @@ import json
 import threading
 import time
 import urllib.request
+import urllib.error
 
 import paho.mqtt.client as mqtt
 
@@ -81,6 +82,16 @@ def explain(d):
             "source": "llm",
             "hour": d["hour"],
             "text": text
+        }
+    except urllib.error.HTTPError as e:
+        detail = e.read(2048).decode("utf-8", errors="replace")
+        if GROQ_API_KEY:
+            detail = detail.replace(GROQ_API_KEY, "[REDACTED]")
+        print(f"[LLM HTTP DETAIL] {e.code}: {detail}", flush=True)
+        return {
+            "source": "template",
+            "hour": d["hour"],
+            "text": template_explanation(d)
         }
     except Exception as e:
         print(f"[LLM ERROR] {type(e).__name__}: {e}", flush=True)
